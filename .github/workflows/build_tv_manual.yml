@@ -1,0 +1,32 @@
+name: Build Android TV
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.x"
+          cache: true
+      - name: Generate temporary signing key
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/tv.jks" -storepass android -keypass android -alias tv -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Temporary build"
+          printf "storeFile=%s/tv.jks\nstorePassword=android\nkeyPassword=android\nkeyAlias=tv\n" "$RUNNER_TEMP" > simple_live_tv_app/android/key.properties
+      - name: Build TV APKs
+        working-directory: simple_live_tv_app
+        run: |
+          flutter pub get
+          flutter build apk --release --split-per-abi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-tv-apks
+          path: simple_live_tv_app/build/app/outputs/flutter-apk/*-release.apk
+          if-no-files-found: error
